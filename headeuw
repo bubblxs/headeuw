@@ -1,0 +1,183 @@
+#!/bin/bash
+
+set -e
+
+DEBUG=0
+
+echo_f () 
+{
+      if [ $DEBUG -eq 1 ]; then
+            echo -e "$@"
+
+      else
+            local filepath=${@: -1}
+            local arr=("$@")
+
+            unset arr[-1]
+
+            echo -e "${arr[*]}" >> $filepath
+      fi
+}
+
+# we do be finding where to start printing
+# in this case, at the half of the header size
+# ??? dont known how to name it, fam
+some_fucking_avg_calc () 
+{
+      local arr_len=$1
+      local height=$2
+      local half=$(((height / 2) - (arr_len / 2)))
+
+      if [ ! $((half % 2)) -eq 0 ]; then
+            half=$((half + 1))
+      fi
+
+      echo $half
+}
+
+# god... i wish there were a better way to do this. idk
+size_of_arr ()
+{
+      local -n arr=$1
+      local size=0
+
+      for _ in "${!arr[@]}"; do
+            size=$((size + 1))
+      done
+
+      echo $size
+}
+
+build_blank_spaces ()
+{
+      printf '%*s' $1 ' '
+}
+
+biggest_line ()
+{     
+      local -n arr=$1
+      local biggest=0;
+      local line_size=""
+
+      for key in "${!arr[@]}"; do
+            line_size=$(echo "${arr[$key]}" | wc -c)
+
+            if [ $line_size -gt $biggest ]; then
+                  biggest=$line_size
+            fi
+      done
+
+      echo $biggest
+}
+
+build_delimiter ()
+{     
+      local str=""
+      local delimiter_char=${2:-"="}
+      local len_delimiter=${1:-10}
+
+      while [ $len_delimiter -gt 0 ]; do
+            str="${str}${delimiter_char}"
+            ((len_delimiter--))
+      done
+
+      echo $str
+}
+
+main () 
+{
+      if [ ! $# -eq 1 ] && [ $DEBUG -eq 0 ]; then
+            echo -e "we need one file to append the header, fam. usage: bash $0 ./file_to_append.cpp" >&2
+            exit 1
+      fi
+
+      local FILENAME=$(basename $0)
+
+      if [ $DEBUG -eq 0 ]; then
+            FILENAME=$(basename $1)
+      fi
+
+      if [ ! -f $FILENAME ]; then
+            echo "output file was not found" >&2
+            exit 1
+      fi
+
+      local HEIGTH=9
+      local DELIMITER_LEN=76
+      local DELIMITER_CHAR="="
+      local COMMENT_LINE="//"
+      local AUTHOR=$"$(whoami)@$(cat /etc/hostname)"
+      local UPDATED_AT=$(date +"%m/%d/%y %H:%M:%S")
+      declare -A content_arr=(
+            [0]=$FILENAME
+            [1]="author: ${AUTHOR}"
+            [2]="updated at: ${UPDATED_AT}"
+      )
+      declare -A mascot_arr=(
+            [0]=' /\_/\'
+            [1]='( o.o )'
+            [2]=' > ^ <'
+      )
+      local BIGGER_LINE_MASCOT=$(biggest_line mascot_arr)
+      local BIGGER_LINE_CONTENT=$(biggest_line content_arr)
+      local DELIMITER=$"// $(build_delimiter $DELIMITER_LEN $DELIMITER_CHAR)"
+      local NUM_BLANK_SPACES=$(((DELIMITER_LEN) / 4))
+      local BLANK_SPACES=$(build_blank_spaces $NUM_BLANK_SPACES)
+
+      local TMP_FILE=""
+
+      if [ $DEBUG -eq 0 ]; then
+            TMP_FILE=$(mktemp ./$BASENAME.XXX --suffix=".tmp")
+      fi
+
+      if [ ! -f $TMP_FILE ]; then
+            echo "temp file was not created" >&2
+            exit 1
+      fi
+
+      local iterator=0
+      local start_print_mascot_index=0
+      local start_print_content_index=0
+
+      if [ $HEIGTH -eq "${#content_arr[*]}" ]; then
+            iterator=$HEADER_LEN
+            start_print_mascot_index=0
+            start_print_content_index=0
+      else
+            start_print_content_index=$(($(some_fucking_avg_calc "${#content_arr[*]}" $HEIGTH) - 1))
+            start_print_mascot_index=$(($(some_fucking_avg_calc "${#content_arr[*]}" "${#mascot_arr[*]}") - 1))
+      fi
+
+      echo_f $DELIMITER $TMP_FILE
+
+      for ((i = iterator; i <= HEIGTH; i++)); do
+            if [ $i -eq $start_print_content_index ]; then
+                  for((j = 0, k = 0; j < "${#content_arr[*]}"; j++, i++)); do
+                        local mascot_fragment=
+                        local content_line_len="${#content_arr[$j]}"
+                        local nlm=$(((BIGGER_LINE_CONTENT - content_line_len)))
+                        local blank_spaces_to_mascot=$(build_blank_spaces $nlm)
+
+                        if [ $j -ge $start_print_mascot_index ] && [ $k -lt "${#mascot_arr[*]}" ] ; then
+                              mascot_fragment="${mascot_arr[$k]}"
+                        
+                              k=$((k + 1))
+                        fi
+            
+                        echo_f "${COMMENT_LINE}" "${BLANK_SPACES}""${content_arr[$j]}""${blank_spaces_to_mascot}""${mascot_fragment}" $TMP_FILE
+                  done
+            else
+                  echo_f $COMMENT_LINE $TMP_FILE
+            fi
+      done
+
+      echo_f $DELIMITER "\n" $TMP_FILE
+
+
+      cat $FILENAME >> $TMP_FILE
+      cat $TMP_FILE > $FILENAME
+
+      rm $TMP_FILE
+}
+
+main $@

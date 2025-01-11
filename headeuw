@@ -95,14 +95,14 @@ main ()
 
       if [ $DEBUG -eq 0 ]; then
             FILENAME=$(basename $1)
+            
+            if [ ! -f $FILENAME ]; then
+                  echo "output file was not found" >&2
+                  exit 1
+            fi
       fi
 
-      if [ ! -f $FILENAME ]; then
-            echo "output file was not found" >&2
-            exit 1
-      fi
-
-      local HEIGTH=9
+      local HEIGTH=3
       local DELIMITER_LEN=76
       local DELIMITER_CHAR="="
       local COMMENT_LINE="//"
@@ -127,12 +127,12 @@ main ()
       local TMP_FILE=""
 
       if [ $DEBUG -eq 0 ]; then
-            TMP_FILE=$(mktemp ./$BASENAME.XXX --suffix=".tmp")
-      fi
-
-      if [ ! -f $TMP_FILE ]; then
-            echo "temp file was not created" >&2
-            exit 1
+            TMP_FILE=$(mktemp /tmp/$BASENAME.XXX --suffix=".tmp")
+            
+            if [ ! -f $TMP_FILE ]; then
+                  echo "temp file was not created" >&2
+                  exit 1
+            fi
       fi
 
       local iterator=0
@@ -151,33 +151,36 @@ main ()
       echo_f $DELIMITER $TMP_FILE
 
       for ((i = iterator; i <= HEIGTH; i++)); do
-            if [ $i -eq $start_print_content_index ]; then
-                  for((j = 0, k = 0; j < "${#content_arr[*]}"; j++, i++)); do
-                        local mascot_fragment=
-                        local content_line_len="${#content_arr[$j]}"
-                        local nlm=$(((BIGGER_LINE_CONTENT - content_line_len)))
-                        local blank_spaces_to_mascot=$(build_blank_spaces $nlm)
-
-                        if [ $j -ge $start_print_mascot_index ] && [ $k -lt "${#mascot_arr[*]}" ] ; then
-                              mascot_fragment="${mascot_arr[$k]}"
-                        
-                              k=$((k + 1))
-                        fi
-            
-                        echo_f "${COMMENT_LINE}" "${BLANK_SPACES}""${content_arr[$j]}""${blank_spaces_to_mascot}""${mascot_fragment}" $TMP_FILE
-                  done
-            else
+            if [ ! $i -eq $start_print_content_index ]; then
                   echo_f $COMMENT_LINE $TMP_FILE
+                  continue
             fi
+            
+            for((j = 0, k = 0; j < "${#content_arr[*]}"; j++, i++)); do
+                  local mascot_fragment=
+                  local content_line_len="${#content_arr[$j]}"
+                  local nlm=$(((BIGGER_LINE_CONTENT - content_line_len)))
+                  local blank_spaces_to_mascot=$(build_blank_spaces $nlm)
+
+                  if [ $j -ge $start_print_mascot_index ] && [ $k -lt "${#mascot_arr[*]}" ] ; then
+                        mascot_fragment="${mascot_arr[$k]}"
+                        
+                        k=$((k + 1))
+                  fi
+            
+                  echo_f "${COMMENT_LINE}" "${BLANK_SPACES}""${content_arr[$j]}""${blank_spaces_to_mascot}""${mascot_fragment}" $TMP_FILE
+            done
       done
 
       echo_f $DELIMITER "\n" $TMP_FILE
 
+      if [ $DEBUG -eq 0 ]; then
 
-      cat $FILENAME >> $TMP_FILE
-      cat $TMP_FILE > $FILENAME
+            cat $FILENAME >> $TMP_FILE
+            cat $TMP_FILE > $FILENAME
 
-      rm $TMP_FILE
+            rm $TMP_FILE
+      fi
 }
 
 main $@

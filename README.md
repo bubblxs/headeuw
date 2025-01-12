@@ -2,9 +2,6 @@
 
 > giving a header to your boring files.
 
-> [!WARNING]  
-> i wouldnt trust it btw
-
 ### usage
 
 ``` bash

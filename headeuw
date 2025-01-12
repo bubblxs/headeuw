@@ -19,14 +19,26 @@ echo_f ()
       fi
 }
 
+echo_padding_block ()
+{
+      local num_padding=$1
+      
+      shift
+
+      while [ $num_padding -gt 0 ]; do
+            echo_f $@
+            ((num_padding--))
+      done
+}
+
 # we do be finding where to start printing
-# in this case, at the half of the header size
+# in this case, at the half of the arr size
 # ??? dont known how to name it, fam
 some_fucking_avg_calc () 
 {
       local arr_len=$1
-      local height=$2
-      local half=$(((height / 2) - (arr_len / 2)))
+      local arr_len2=$2
+      local half=$(((arr_len2 / 2) - (arr_len / 2)))
 
       if [ ! $((half % 2)) -eq 0 ]; then
             half=$((half + 1))
@@ -53,21 +65,21 @@ build_blank_spaces ()
       printf '%*s' $1 ' '
 }
 
-biggest_line ()
+largest_line ()
 {     
       local -n arr=$1
-      local biggest=0;
-      local line_size=""
+      local largest=0;
+      local line_size=0
 
       for key in "${!arr[@]}"; do
             line_size=$(echo "${arr[$key]}" | wc -c)
 
-            if [ $line_size -gt $biggest ]; then
-                  biggest=$line_size
+            if [ $line_size -gt $largest ]; then
+                  largest=$line_size
             fi
       done
 
-      echo $biggest
+      echo $largest
 }
 
 build_delimiter ()
@@ -87,7 +99,7 @@ build_delimiter ()
 main () 
 {
       if [ ! $# -eq 1 ] && [ $DEBUG -eq 0 ]; then
-            echo -e "we need one file to append the header, fam. usage: bash $0 ./file_to_append.cpp" >&2
+            echo -e "we need one file to append the header, fam. usage: bash $0 ./file_to_append.cpp." >&2
             exit 1
       fi
 
@@ -97,85 +109,92 @@ main ()
             FILENAME=$(basename $1)
             
             if [ ! -f $FILENAME ]; then
-                  echo "output file was not found" >&2
+                  echo "output file was not found." >&2
                   exit 1
             fi
       fi
 
-      local HEIGTH=3
       local DELIMITER_LEN=76
+      local PADDING_BLOCK=0
+      local PADDING_INLINE=$((DELIMITER_LEN / 4))
       local DELIMITER_CHAR="="
       local COMMENT_LINE="//"
-      local AUTHOR=$"$(whoami)@$(cat /etc/hostname)"
-      local UPDATED_AT=$(date +"%m/%d/%y %H:%M:%S")
-      declare -A content_arr=(
+      declare -A CONTENT_ARR=(
             [0]=$FILENAME
-            [1]="author: ${AUTHOR}"
-            [2]="updated at: ${UPDATED_AT}"
+            [1]=$"author: $(whoami)@$(cat /etc/hostname)"
+            [2]=$"updated at: $(date +"%d/%m/%y %H:%M:%S")"
       )
-      declare -A mascot_arr=(
+      declare -A MASCOT_ARR=(
             [0]=' /\_/\'
             [1]='( o.o )'
-            [2]=' > ^ <'
+            [2]=' >   <'
       )
-      local BIGGER_LINE_MASCOT=$(biggest_line mascot_arr)
-      local BIGGER_LINE_CONTENT=$(biggest_line content_arr)
-      local DELIMITER=$"// $(build_delimiter $DELIMITER_LEN $DELIMITER_CHAR)"
-      local NUM_BLANK_SPACES=$(((DELIMITER_LEN) / 4))
-      local BLANK_SPACES=$(build_blank_spaces $NUM_BLANK_SPACES)
+      local MASCOT_ARR_LEN=${#MASCOT_ARR[*]}
+      local CONTENT_ARR_LEN=${#CONTENT_ARR[*]}
+      local LARGEST_LINE_CONTENT_LEN=$(largest_line CONTENT_ARR)
+      local DELIMITER=$"$COMMENT_LINE $(build_delimiter $DELIMITER_LEN $DELIMITER_CHAR)"
+      local BLANK_SPACES=$(build_blank_spaces $PADDING_INLINE)
 
       local TMP_FILE=""
 
       if [ $DEBUG -eq 0 ]; then
-            TMP_FILE=$(mktemp /tmp/$BASENAME.XXX --suffix=".tmp")
+            TMP_FILE=$(mktemp /tmp/$FILENAME.XXX --suffix=".tmp")
             
             if [ ! -f $TMP_FILE ]; then
-                  echo "temp file was not created" >&2
+                  echo "temp file was not created." >&2
                   exit 1
             fi
       fi
 
-      local iterator=0
-      local start_print_mascot_index=0
-      local start_print_content_index=0
+      local start_printing_mascot_index=0
+      local start_printing_content_index=0
+      local largest_arr=$CONTENT_ARR_LEN
 
-      if [ $HEIGTH -eq "${#content_arr[*]}" ]; then
-            iterator=$HEADER_LEN
-            start_print_mascot_index=0
-            start_print_content_index=0
-      else
-            start_print_content_index=$(($(some_fucking_avg_calc "${#content_arr[*]}" $HEIGTH) - 1))
-            start_print_mascot_index=$(($(some_fucking_avg_calc "${#content_arr[*]}" "${#mascot_arr[*]}") - 1))
+      if [ $CONTENT_ARR_LEN -gt $MASCOT_ARR_LEN ]; then
+            start_printing_mascot_index=$(($(some_fucking_avg_calc $MASCOT_ARR_LEN $CONTENT_ARR_LEN) - 1))
+
+      elif [ $MASCOT_ARR_LEN -gt $CONTENT_ARR_LEN ]; then
+            start_printing_content_index=$(($(some_fucking_avg_calc $CONTENT_ARR_LEN $MASCOT_ARR_LEN) - 1))
+            largest_arr=$MASCOT_ARR_LEN
       fi
 
       echo_f $DELIMITER $TMP_FILE
 
-      for ((i = iterator; i <= HEIGTH; i++)); do
-            if [ ! $i -eq $start_print_content_index ]; then
-                  echo_f $COMMENT_LINE $TMP_FILE
-                  continue
-            fi
-            
-            for((j = 0, k = 0; j < "${#content_arr[*]}"; j++, i++)); do
-                  local mascot_fragment=
-                  local content_line_len="${#content_arr[$j]}"
-                  local nlm=$(((BIGGER_LINE_CONTENT - content_line_len)))
-                  local blank_spaces_to_mascot=$(build_blank_spaces $nlm)
+      echo_padding_block $PADDING_BLOCK $COMMENT_LINE $TMP_FILE
 
-                  if [ $j -ge $start_print_mascot_index ] && [ $k -lt "${#mascot_arr[*]}" ] ; then
-                        mascot_fragment="${mascot_arr[$k]}"
-                        
-                        k=$((k + 1))
+      for((i = 0, m = 0, c = 0; i < largest_arr; i++)); do
+            local mascot=""
+            local content=""
+            local num_blank_spaces=0
+            local blank_spaces_to_mascot=""
+
+            if [ $i -ge $start_printing_content_index ] && [ $c -lt $CONTENT_ARR_LEN ]; then
+                  content_line_len="${#CONTENT_ARR[$c]}"
+                  num_blank_spaces=$((LARGEST_LINE_CONTENT_LEN - content_line_len))
+                  blank_spaces_to_mascot=$(build_blank_spaces $num_blank_spaces)
+                  content="${CONTENT_ARR[$c]}"
+
+                  c=$((c + 1))
+            fi
+
+            if [ $i -ge $start_printing_mascot_index ] && [ $m -lt $MASCOT_ARR_LEN ]; then
+                  mascot="${MASCOT_ARR[$m]}"
+
+                  if [ "$content" == "" ]; then
+                        content=$(build_blank_spaces $LARGEST_LINE_CONTENT_LEN)
                   fi
-            
-                  echo_f "${COMMENT_LINE}" "${BLANK_SPACES}""${content_arr[$j]}""${blank_spaces_to_mascot}""${mascot_fragment}" $TMP_FILE
-            done
+
+                  m=$((m + 1))
+            fi
+
+            echo_f "$COMMENT_LINE" "$BLANK_SPACES" "$content" "$blank_spaces_to_mascot" "$mascot" $TMP_FILE
       done
+
+      echo_padding_block $PADDING_BLOCK $COMMENT_LINE $TMP_FILE
 
       echo_f $DELIMITER "\n" $TMP_FILE
 
       if [ $DEBUG -eq 0 ]; then
-
             cat $FILENAME >> $TMP_FILE
             cat $TMP_FILE > $FILENAME
 

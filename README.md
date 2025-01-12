@@ -1,6 +1,6 @@
 <h2 align=center>headeuw</h2>
 
-> giving a header to your boring files
+> giving a header to your boring files.
 
 > [!WARNING]  
 > i wouldnt trust it btw
